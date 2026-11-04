@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Line Copilot (synthetic demo)</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--mute:#667085;--line:#e3e6eb;--accent:#1f5eff;--warn:#c2410c}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:16px 24px;background:var(--card);border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0}header small{color:var(--mute)}
+main{max-width:1000px;margin:20px auto;padding:0 16px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.kpi b{font-size:22px;display:block}.kpi span{color:var(--mute);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-weight:600}.warn{color:var(--warn);font-weight:600}
+#log{display:grid;gap:10px;max-height:380px;overflow:auto;margin-bottom:12px}
+.q{background:#eef3ff;padding:8px 12px;border-radius:8px;justify-self:end;max-width:80%}
+.a{background:#f2f4f7;padding:8px 12px;border-radius:8px;white-space:pre-wrap;max-width:92%}
+details{font-size:12px;color:var(--mute);margin-top:6px}pre{overflow:auto;margin:6px 0 0}
+form{display:flex;gap:8px}input{flex:1;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+button{padding:10px 16px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;cursor:pointer}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.chips button{background:#fff;color:var(--accent);border:1px solid var(--line);font-size:13px;padding:5px 10px}
+@media(max-width:640px){.kpis{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>Line Copilot</h1><small>AI assistant for line and quality engineers. All data is synthetic.</small></header>
+<main>
+<section class="card"><div class="kpis" id="kpis"></div></section>
+<section class="card"><b>Incidents flagged by anomaly detection</b><table id="anoms"></table></section>
+<section class="card"><div class="chips" id="chips"></div><div id="log"></div>
+<form id="f"><input id="q" placeholder="Ask about downtime, defects, shifts, or what to do next" autocomplete="off"><button>Ask</button></form></section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+fetch('/api/overview').then(r=>r.json()).then(o=>{
+  const k=o.kpi;
+  $('#kpis').innerHTML=[[k.defect_rate_pct+'%','Defect rate (14 days)'],[k.downtime_min+' min','Total downtime'],[k.units.toLocaleString(),'Units built']]
+    .map(([v,l])=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
+  $('#anoms').innerHTML='<tr><th>Line</th><th>Main defect</th><th>Shifts</th><th>Days</th><th>Peak rate</th><th>Baseline</th></tr>'+
+    o.incidents.map(a=>`<tr><td>${a.line}</td><td>${a.main_defect}</td><td>${a.shifts.join(', ')}</td><td>${a.first_day}-${a.last_day}</td><td class="warn">${a.peak_defect_rate_pct}%</td><td>${a.baseline_pct}%</td></tr>`).join('');
+});
+['What looks wrong in the data?','Top downtime reasons on Line 3 night shift','Compare shifts on Line 3','Defect pareto for Line 2 days 8-10','How do I fix feeder jams?']
+ .forEach(t=>{const b=document.createElement('button');b.textContent=t;b.type='button';b.onclick=()=>{$('#q').value=t;$('#f').requestSubmit()};$('#chips').append(b)});
+$('#f').onsubmit=async e=>{e.preventDefault();const q=$('#q').value.trim();if(!q)return;$('#q').value='';
+  $('#log').insertAdjacentHTML('beforeend',`<div class="q">${esc(q)}</div>`);
+  const r=await fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:q})});
+  const d=await r.json();
+  $('#log').insertAdjacentHTML('beforeend',`<div class="a">${esc(d.answer||d.error)}<details><summary>Mode: ${d.mode} | ${d.tool_calls?d.tool_calls.length:0} tool call(s)</summary><pre>${esc(JSON.stringify(d.tool_calls,null,1))}</pre></details></div>`);
+  $('#log').scrollTop=1e9};
+</script></body></html>
